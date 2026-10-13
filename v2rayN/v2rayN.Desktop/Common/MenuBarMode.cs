@@ -93,16 +93,42 @@ internal static class MenuBarMode
 
     private static void ApplyTray(NativeMenu menu)
     {
-        var icons = GetTrayIcons();
-        if (icons is not { Count: > 0 })
+        // Runs via Dispatcher.UIThread.Post, i.e. outside Activate's try/catch —
+        // must guard itself or a tray failure kills the app.
+        try
         {
-            return;
+            var icons = GetTrayIcons();
+            if (icons is not { Count: > 0 })
+            {
+                return;
+            }
+
+            // The macOS exporter tracks the XAML-declared NativeMenu instance and rejects
+            // a different instance ("The menu being updated does not match"), so mutate
+            // the existing menu in place instead of replacing it.
+            var target = icons[0].Menu;
+            if (target is null || target == menu)
+            {
+                icons[0].Menu = menu;
+            }
+            else
+            {
+                target.Items.Clear();
+                foreach (var item in menu.Items)
+                {
+                    target.Items.Add(item);
+                }
+            }
+
+            // Core not started yet; the CoreStateChanged event flips it to ON after boot auto-connect.
+            icons[0].Icon = _iconOff;
         }
-
-        icons[0].Menu = menu;
-
-        // Core not started yet; the CoreStateChanged event flips it to ON after boot auto-connect.
-        icons[0].Icon = _iconOff;
+        catch (Exception ex)
+        {
+            // The tray was not taken over; let StatusBarView.RefreshIcon resume.
+            IsActive = false;
+            Logging.SaveLog(_tag, ex);
+        }
     }
 
     private static void SetTrayIcon(bool isRunning)
