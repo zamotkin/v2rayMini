@@ -102,24 +102,13 @@ cat > "$APP_DIR/Contents/Info.plist" <<EOF
 </plist>
 EOF
 
-# ditto preserves unix exec permissions (plain zip can strip them and break
-# the app); on non-mac fall back to zip -r -y.
-if [[ "$(uname -s)" == "Darwin" ]]; then
-    ditto -c -k --keepParent "$APP_DIR" "$ZIP_PATH"
-else
-    (cd dist && zip -r -y v2rayMini-osx-arm64.zip v2rayMini.app)
-fi
-
-ABS_ZIP_PATH="$(cd "$(dirname "$ZIP_PATH")" && pwd)/$(basename "$ZIP_PATH")"
-ABS_ZIP_SIZE="$(du -h "$ABS_ZIP_PATH" | cut -f1)"
-echo "Artifact: $ABS_ZIP_PATH ($ABS_ZIP_SIZE)"
-
-# --- Install the xray core into the v2rayMini data dir (latest 2dust/v2rayN-core-bin) ---
-# xray only: v2rayMini runs a single core; geo files are downloaded by the app on demand.
+# --- Fetch the xray core (latest 2dust/v2rayN-core-bin; xray only) ---
+# It goes BOTH into the bundle and the data dir. The bundle copy is mandatory:
+# CoreManager.Init copies Contents/MacOS/bin -> the data dir on every start
+# (overwrite:false) and throws DirectoryNotFoundException when the source bin/
+# is missing, killing the rest of Init (statistics, scheduled updates).
 CORE_REPO="2dust/v2rayN-core-bin"
-CORE_DIR="$HOME/Library/Application Support/v2rayMini/bin/xray"
-mkdir -p "$CORE_DIR"
-
+CORE_DATA_DIR="$HOME/Library/Application Support/v2rayMini/bin/xray"
 CORE_TMP="$(mktemp -d "${TMPDIR:-/tmp}/v2rayMini-core.XXXXXX")"
 trap 'rm -rf "$CORE_TMP"' EXIT
 
@@ -144,19 +133,36 @@ echo "Core bin archive: $CORE_ARCHIVE_NAME ($CORE_ARCHIVE_URL)"
 curl -fSL --retry 3 -o "$CORE_TMP/$CORE_ARCHIVE_NAME" "$CORE_ARCHIVE_URL"
 unzip -q "$CORE_TMP/$CORE_ARCHIVE_NAME" -d "$CORE_TMP/unpacked"
 XRAY_SRC="$(find "$CORE_TMP/unpacked" -type f -name xray -print -quit)"
-if [[ -z "$XRAY_SRC" ]]; then
-    echo "ERROR: no xray binary found inside $CORE_ARCHIVE_NAME; wrong artifact?" >&2
-    exit 1
-fi
-if ! "$XRAY_SRC" -version >/dev/null 2>&1; then
-    echo "ERROR: downloaded xray from $CORE_ARCHIVE_NAME does not run on this machine." >&2
+if [[ -z "$XRAY_SRC" ]] || ! "$XRAY_SRC" -version >/dev/null 2>&1; then
+    echo "ERROR: no runnable xray binary inside $CORE_ARCHIVE_NAME; wrong artifact?" >&2
     exit 1
 fi
 
-cp "$XRAY_SRC" "$CORE_DIR/xray"
-chmod +x "$CORE_DIR/xray"
-echo "Installed core: $CORE_DIR/xray ($("$CORE_DIR/xray" -version | head -n1))"
+# Bundle bin/: xray + geo/routing assets from the archive (other cores skipped).
+BUNDLE_BIN="$APP_DIR/Contents/MacOS/bin"
+mkdir -p "$BUNDLE_BIN/xray"
+cp "$XRAY_SRC" "$BUNDLE_BIN/xray/xray"
+chmod +x "$BUNDLE_BIN/xray/xray"
+find "$CORE_TMP/unpacked" -type f \( -name 'geo*.dat' -o -name '*.mmdb' \) -exec cp {} "$BUNDLE_BIN/" \;
+
+# Data dir: pre-install so the very first Connect works even before Init's copy.
+mkdir -p "$CORE_DATA_DIR"
+cp "$XRAY_SRC" "$CORE_DATA_DIR/xray"
+chmod +x "$CORE_DATA_DIR/xray"
+echo "Installed core: $CORE_DATA_DIR/xray ($("$CORE_DATA_DIR/xray" -version | head -n1))"
 rm -rf "$CORE_TMP"
+
+# ditto preserves unix exec permissions (plain zip can strip them and break
+# the app); on non-mac fall back to zip -r -y. Zipped AFTER bin/ is bundled.
+if [[ "$(uname -s)" == "Darwin" ]]; then
+    ditto -c -k --keepParent "$APP_DIR" "$ZIP_PATH"
+else
+    (cd dist && zip -r -y v2rayMini-osx-arm64.zip v2rayMini.app)
+fi
+
+ABS_ZIP_PATH="$(cd "$(dirname "$ZIP_PATH")" && pwd)/$(basename "$ZIP_PATH")"
+ABS_ZIP_SIZE="$(du -h "$ABS_ZIP_PATH" | cut -f1)"
+echo "Artifact: $ABS_ZIP_PATH ($ABS_ZIP_SIZE)"
 
 # --- Auto-install the fresh bundle into /Applications ---
 # Re-check the guard right before replacing the app (the early check above
