@@ -5417,5 +5417,23 @@ namespace ServiceLib.Resx {
                 return ResourceManager.GetString("UpgradeAppNotExistTip", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   查找类似 Connect 的本地化字符串。
+        /// </summary>
+        public static string menuConnect {
+            get {
+                return ResourceManager.GetString("menuConnect", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Disconnect 的本地化字符串。
+        /// </summary>
+        public static string menuDisconnect {
+            get {
+                return ResourceManager.GetString("menuDisconnect", resourceCulture);
+            }
+        }
     }
 }

@@ -100,6 +100,7 @@ public class CoreManager
         if (_processService != null)
         {
             await UpdateFunc(true, $"{node.GetSummary()}");
+            AppEvents.CoreStateChanged.Publish(true);
         }
     }
 
@@ -167,6 +168,8 @@ public class CoreManager
                 _processPreService.Dispose();
                 _processPreService = null;
             }
+
+            AppEvents.CoreStateChanged.Publish(false);
         }
         catch (Exception ex)
         {

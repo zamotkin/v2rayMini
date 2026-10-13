@@ -2,6 +2,8 @@ namespace ServiceLib.ViewModels;
 
 public partial class StatusBarViewModel : MyReactiveObject
 {
+    private static readonly string _tag = "StatusBarViewModel";
+
     public Interaction<string, RxVoid> SetClipboardDataInteraction { get; } = new();
     public Interaction<RxVoid, string?> PasswordInputInteraction { get; } = new();
     public Interaction<RxVoid, RxVoid> DispatcherRefreshIconInteraction { get; } = new();
@@ -41,6 +43,8 @@ public partial class StatusBarViewModel : MyReactiveObject
     public ReactiveCommand<RxVoid, RxVoid> NotifyLeftClickCmd { get; }
     public ReactiveCommand<RxVoid, RxVoid> ShowWindowCmd { get; }
     public ReactiveCommand<RxVoid, RxVoid> HideWindowCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> MenuConnectCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> MenuDisconnectCmd { get; }
 
     #region System Proxy
 
@@ -159,6 +163,15 @@ public partial class StatusBarViewModel : MyReactiveObject
             ShowHideWindowRequested.Publish(false);
             await Task.CompletedTask;
         });
+        MenuConnectCmd = ReactiveCommand.CreateFromTask(async () =>
+        {
+            ReloadRequested.Publish();
+            await Task.CompletedTask;
+        });
+        MenuDisconnectCmd = ReactiveCommand.CreateFromTask(async () =>
+        {
+            await MenuDisconnect();
+        });
 
         AddServerViaClipboardCmd = ReactiveCommand.CreateFromTask(async () =>
             {
@@ -258,6 +271,19 @@ public partial class StatusBarViewModel : MyReactiveObject
     {
         SubscriptionsUpdateRequested.Publish(blProxy);
         await Task.Delay(1000);
+    }
+
+    private async Task MenuDisconnect()
+    {
+        try
+        {
+            await CoreManager.Instance.CoreStop();
+            await SysProxyHandler.UpdateSysProxy(_config, true);
+        }
+        catch (Exception ex)
+        {
+            Logging.SaveLog(_tag, ex);
+        }
     }
 
     public async Task RefreshServersBiz()
