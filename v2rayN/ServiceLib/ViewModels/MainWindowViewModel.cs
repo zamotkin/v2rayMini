@@ -290,6 +290,11 @@ public partial class MainWindowViewModel : MyReactiveObject
                 .SubscribeAsync(async _ => await Reload());
         }
 
+        StatusBarViewModel.DisconnectRequested
+            .AsObservable()
+            .ObserveOn(RxSchedulers.MainThreadScheduler)
+            .SubscribeAsync(async _ => await Disconnect());
+
         StatusBarViewModel.AddServerViaScanRequested
             .AsObservable()
             .ObserveOn(RxSchedulers.MainThreadScheduler)
@@ -753,6 +758,41 @@ public partial class MainWindowViewModel : MyReactiveObject
                 _hasNextReloadJob = false;
                 await Reload();
             }
+        }
+    }
+
+    /// <summary>
+    /// Serialized against <see cref="Reload"/> by the same semaphore: waits in line behind an
+    /// in-flight reload, then kills the just-started core instead of racing LoadCore.
+    /// </summary>
+    private async Task Disconnect()
+    {
+        //Wait in line behind any in-flight reload job; never fight the semaphore.
+        await _reloadSemaphore.WaitAsync();
+
+        if (DesignMode)
+        {
+            _reloadSemaphore.Release();
+            return;
+        }
+
+        try
+        {
+            Logging.SaveLog($"{nameof(Disconnect)} start");
+
+            //CoreStop publishes CoreStateChanged(false) itself; do not double-publish here.
+            await CoreManager.Instance.CoreStop();
+            await SysProxyHandler.UpdateSysProxy(_config, true);
+
+            Logging.SaveLog($"{nameof(Disconnect)} done");
+        }
+        catch (Exception ex)
+        {
+            Logging.SaveLog($"{nameof(Disconnect)} failed", ex);
+        }
+        finally
+        {
+            _reloadSemaphore.Release();
         }
     }
 

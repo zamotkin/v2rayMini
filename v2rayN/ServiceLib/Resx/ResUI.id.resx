@@ -1794,4 +1794,10 @@ Tindakan "Ambil sertifikat" mungkin gagal jika sertifikat self-signed digunakan 
   <data name="TbEnableFinalFragmentTip" xml:space="preserve">
     <value>Memecah bagian akhir paket menjadi fragmen yang lebih kecil. Hal ini dapat memengaruhi throughput dan latensi.</value>
   </data>
+  <data name="menuConnect" xml:space="preserve">
+    <value>Hubungkan</value>
+  </data>
+  <data name="menuDisconnect" xml:space="preserve">
+    <value>Putuskan</value>
+  </data>
 </root>

@@ -1897,4 +1897,10 @@
   <data name="menuAddMasqueServer" xml:space="preserve">
     <value>添加 [MASQUE]</value>
   </data>
+  <data name="menuConnect" xml:space="preserve">
+    <value>连接</value>
+  </data>
+  <data name="menuDisconnect" xml:space="preserve">
+    <value>断开连接</value>
+  </data>
 </root>

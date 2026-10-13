@@ -1767,4 +1767,10 @@ The "Get Certificate" action may fail if a self-signed certificate is used or if
   <data name="menuNewUpdate" xml:space="preserve">
     <value>Nouvelle MAJ</value>
   </data>
+  <data name="menuConnect" xml:space="preserve">
+    <value>Connecter</value>
+  </data>
+  <data name="menuDisconnect" xml:space="preserve">
+    <value>Déconnecter</value>
+  </data>
 </root>

@@ -168,13 +168,15 @@ public class CoreManager
                 _processPreService.Dispose();
                 _processPreService = null;
             }
-
-            AppEvents.CoreStateChanged.Publish(false);
         }
         catch (Exception ex)
         {
             Logging.SaveLog(_tag, ex);
         }
+
+        //Published after the try/catch: a swallowed exception mid-stop must still
+        //flip the state to false (core is down either way at this point).
+        AppEvents.CoreStateChanged.Publish(false);
     }
 
     #region Private

@@ -6,6 +6,10 @@ using ServiceLib.ViewModels;
 
 namespace ServiceLib.Tests.ViewModels;
 
+// MINOR 8: TUnit 1.73 has no DisableParallelization attribute; [NotInParallel] is its
+// exact equivalent and runs every test in this class alone, keeping the static
+// AppEvents.CoreStateChanged count assertions deterministic.
+[NotInParallel]
 public class MenuBarCommandsTests
 {
     private static readonly Lazy<bool> _rxuiInit = new(() =>
@@ -15,6 +19,20 @@ public class MenuBarCommandsTests
             .BuildApp();
         return true;
     });
+
+    /// <summary>
+    /// MAJOR 2 sandbox: CreateConfig leaves SysProxyType at its default (ForcedClear),
+    /// which UpdateSysProxy maps to a real system-proxy reset on Linux/macOS hosts.
+    /// ESysProxyType.Unchanged — the tray's "do not change" option value — hits no case
+    /// in SysProxyHandler.UpdateSysProxy's switch, so StatusBarViewModel.Init()
+    /// (ChangeSystemProxyAsync) becomes a no-op and the host proxy stays untouched.
+    /// </summary>
+    private static void BindSandboxedConfig()
+    {
+        var config = CoreConfigTestFactory.CreateConfig();
+        config.SystemProxyItem.SysProxyType = ESysProxyType.Unchanged;
+        CoreConfigTestFactory.BindAppManagerConfig(config);
+    }
 
     [Test]
     public async Task CoreStateChanged_Roundtrip_PublishesAndReceives()
@@ -33,17 +51,17 @@ public class MenuBarCommandsTests
     }
 
     [Test]
-    public async Task MenuDisconnectCmd_WhenCoreNotRunning_PublishesCoreStateChangedFalse()
+    public async Task MenuDisconnectCmd_PublishesDisconnectRequested()
     {
         _ = _rxuiInit.Value;
-        CoreConfigTestFactory.BindAppManagerConfig(CoreConfigTestFactory.CreateConfig());
+        BindSandboxedConfig();
 
         var vm = new StatusBarViewModel();
 
-        // Subscribe before Execute so the assertion observes the production publish itself
-        // (count + order + value), not a post-hoc replay.
+        // Instance channel on a fresh VM: a local list plus scope-bound unsubscribe keeps
+        // the assertion immune to static-channel publications from other tests.
         var received = new List<bool>();
-        using var stateSub = AppEvents.CoreStateChanged
+        using var subscription = vm.DisconnectRequested
             .AsObservable()
             .Subscribe(received.Add);
 
@@ -54,6 +72,22 @@ public class MenuBarCommandsTests
         await finished.Task.IsCompleted.Should().BeTrue();
 
         await received.Should().HaveCount(1);
+        await received[0].Should().BeTrue();
+    }
+
+    [Test]
+    public async Task CoreStop_WhenIdle_PublishesCoreStateChangedFalse()
+    {
+        _ = _rxuiInit.Value;
+
+        var received = new List<bool>();
+        using var subscription = AppEvents.CoreStateChanged
+            .AsObservable()
+            .Subscribe(received.Add);
+
+        await CoreManager.Instance.CoreStop();
+
+        await received.Should().HaveCount(1);
         await received[0].Should().BeFalse();
     }
 
@@ -61,7 +95,7 @@ public class MenuBarCommandsTests
     public async Task MenuConnectCmd_Executes_PublishesReloadRequested()
     {
         _ = _rxuiInit.Value;
-        CoreConfigTestFactory.BindAppManagerConfig(CoreConfigTestFactory.CreateConfig());
+        BindSandboxedConfig();
 
         var vm = new StatusBarViewModel();
 

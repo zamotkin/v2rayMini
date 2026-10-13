@@ -22,6 +22,12 @@ else
     docker run --rm -v "$REPO_ROOT":/src -v v2rayn-nuget:/root/.nuget -w /src \
         mcr.microsoft.com/dotnet/sdk:10.0 \
         dotnet publish ./v2rayN/v2rayN.Desktop/v2rayN.Desktop.csproj -c Release -r osx-arm64 -p:SelfContained=true -o "$OUT_DIR"
+
+    # The SDK container runs as root; on Linux SDK-less hosts the dist tree would stay
+    # root-owned afterwards. macOS hosts are the deploy target and skip this.
+    if [[ "$(uname -s)" != "Darwin" ]]; then
+        docker run --rm -v "$REPO_ROOT":/src -w /src mcr.microsoft.com/dotnet/sdk:10.0 chown -R "$(id -u):$(id -g)" dist
+    fi
 fi
 
 # CI parity: strip pdb files from the output.

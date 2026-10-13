@@ -1899,4 +1899,10 @@ Təyin edildikdə sertifikat sabitlənəcək və "Təhlükəsiz olmayan əlaqəy
   <data name="TbSortingProcess" xml:space="preserve">
     <value>Proses</value>
   </data>
+  <data name="menuConnect" xml:space="preserve">
+    <value>Qoşul</value>
+  </data>
+  <data name="menuDisconnect" xml:space="preserve">
+    <value>Ayrıl</value>
+  </data>
 </root>

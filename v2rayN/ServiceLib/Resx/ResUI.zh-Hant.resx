@@ -1903,4 +1903,10 @@
   <data name="TbSortingProcess" xml:space="preserve">
     <value>行程</value>
   </data>
+  <data name="menuConnect" xml:space="preserve">
+    <value>連線</value>
+  </data>
+  <data name="menuDisconnect" xml:space="preserve">
+    <value>中斷連線</value>
+  </data>
 </root>

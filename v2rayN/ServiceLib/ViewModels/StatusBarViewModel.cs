@@ -15,6 +15,7 @@ public partial class StatusBarViewModel : MyReactiveObject
 
     public EventChannel<string> SetDefaultServerRequested { get; } = new();
     public EventChannel<RxVoid> ReloadRequested { get; } = new();
+    public EventChannel<bool> DisconnectRequested { get; } = new();
     public EventChannel<RxVoid> AddServerViaScanRequested { get; } = new();
     public EventChannel<RxVoid> AddServerViaClipboardRequested { get; } = new();
 
@@ -277,13 +278,15 @@ public partial class StatusBarViewModel : MyReactiveObject
     {
         try
         {
-            await CoreManager.Instance.CoreStop();
-            await SysProxyHandler.UpdateSysProxy(_config, true);
+            // MainWindowViewModel serializes the actual stop with Reload via _reloadSemaphore;
+            // the VM only requests it here so a disconnect issued mid-reload cannot race LoadCore.
+            DisconnectRequested.Publish(true);
         }
         catch (Exception ex)
         {
             Logging.SaveLog(_tag, ex);
         }
+        await Task.CompletedTask;
     }
 
     public async Task RefreshServersBiz()

@@ -9,6 +9,7 @@ internal static class MenuBarMode
     private static Window? _mainWindow;
     private static WindowIcon? _iconOn;
     private static WindowIcon? _iconOff;
+    private static IDisposable? _coreStateChangedSubscription;
 
     public static bool IsActive { get; private set; }
 
@@ -36,17 +37,26 @@ internal static class MenuBarMode
             _iconOn = LoadMenuBarIcon(IconOnResource);
             _iconOff = LoadMenuBarIcon(IconOffResource);
 
-            var menu = BuildMenu(exitAction);
+            // Dispose the CoreStateChanged subscription before the app starts shutting down,
+            // so CoreStop's publish during AppExitAsync cannot reach the tray handler anymore.
+            var menu = BuildMenu(async () =>
+            {
+                _coreStateChangedSubscription?.Dispose();
+                _coreStateChangedSubscription = null;
+                await exitAction();
+            });
 
             // The XAML TrayIcon may not be materialized yet; defer once to the UI thread.
             Dispatcher.UIThread.Post(() => ApplyTray(menu));
 
-            AppEvents.CoreStateChanged
+            _coreStateChangedSubscription = AppEvents.CoreStateChanged
                 .AsObservable()
                 .Subscribe(isRunning => Dispatcher.UIThread.Post(() => SetTrayIcon(isRunning)));
         }
         catch (Exception ex)
         {
+            // The tray was not actually taken over; let StatusBarView.RefreshIcon resume.
+            IsActive = false;
             Logging.SaveLog(_tag, ex);
         }
     }
@@ -83,7 +93,7 @@ internal static class MenuBarMode
 
     private static void ApplyTray(NativeMenu menu)
     {
-        var icons = TrayIcon.GetIcons(Application.Current);
+        var icons = GetTrayIcons();
         if (icons is not { Count: > 0 })
         {
             return;
@@ -97,13 +107,27 @@ internal static class MenuBarMode
 
     private static void SetTrayIcon(bool isRunning)
     {
-        var icons = TrayIcon.GetIcons(Application.Current);
+        var icons = GetTrayIcons();
         if (icons is not { Count: > 0 })
         {
             return;
         }
 
         icons[0].Icon = isRunning ? _iconOn : _iconOff;
+    }
+
+    /// <summary>
+    /// A late CoreStateChanged publish during shutdown cannot be allowed to throw:
+    /// Application.Current is already gone by then.
+    /// </summary>
+    private static TrayIcons? GetTrayIcons()
+    {
+        if (Application.Current is null)
+        {
+            return null;
+        }
+
+        return TrayIcon.GetIcons(Application.Current);
     }
 
     private static WindowIcon LoadMenuBarIcon(string fileName)
