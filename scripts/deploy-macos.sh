@@ -139,16 +139,21 @@ if [[ -z "$XRAY_SRC" ]] || ! "$XRAY_SRC" -version >/dev/null 2>&1; then
 fi
 
 # Bundle bin/: xray + geo/routing assets from the archive (other cores skipped).
+# Geo files go BOTH to bin/ (upstream layout, XRAY_LOCATION_ASSET target) and
+# bin/xray/ (xray's exe-relative fallback when the env var is not effective).
 BUNDLE_BIN="$APP_DIR/Contents/MacOS/bin"
 mkdir -p "$BUNDLE_BIN/xray"
 cp "$XRAY_SRC" "$BUNDLE_BIN/xray/xray"
 chmod +x "$BUNDLE_BIN/xray/xray"
 find "$CORE_TMP/unpacked" -type f \( -name 'geo*.dat' -o -name '*.mmdb' \) -exec cp {} "$BUNDLE_BIN/" \;
+cp "$BUNDLE_BIN"/geo*.dat "$BUNDLE_BIN"/*.mmdb "$BUNDLE_BIN/xray/" 2>/dev/null || true
 
 # Data dir: pre-install so the very first Connect works even before Init's copy.
 mkdir -p "$CORE_DATA_DIR"
 cp "$XRAY_SRC" "$CORE_DATA_DIR/xray"
 chmod +x "$CORE_DATA_DIR/xray"
+cp "$BUNDLE_BIN"/geo*.dat "$BUNDLE_BIN"/*.mmdb "$CORE_DATA_DIR/" 2>/dev/null || true
+cp "$BUNDLE_BIN"/geo*.dat "$BUNDLE_BIN"/*.mmdb "$CORE_DATA_DIR/xray/" 2>/dev/null || true
 echo "Installed core: $CORE_DATA_DIR/xray ($("$CORE_DATA_DIR/xray" -version | head -n1))"
 rm -rf "$CORE_TMP"
 
