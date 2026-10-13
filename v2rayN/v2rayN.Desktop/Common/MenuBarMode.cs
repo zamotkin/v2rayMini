@@ -108,7 +108,13 @@ internal static class MenuBarMode
             var target = icons[0].Menu;
             if (target is null)
             {
-                icons[0].Menu = new NativeMenu { Items = { items } };
+                var fresh = new NativeMenu();
+                foreach (var item in items)
+                {
+                    fresh.Items.Add(item);
+                }
+
+                icons[0].Menu = fresh;
             }
             else
             {
