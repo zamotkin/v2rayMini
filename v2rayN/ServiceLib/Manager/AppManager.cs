@@ -68,6 +68,7 @@ public sealed class AppManager
         }
 
         Logging.Setup();
+        ConfigMigrationHandler.Migrate(Path.Combine(Utils.StartupPath(), "guiConfigs"), ConfigMigrationHandler.GetDefaultCandidates());
         var config = ConfigHandler.LoadConfig();
         if (config == null)
         {
