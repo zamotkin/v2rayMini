@@ -71,6 +71,12 @@ public partial class App : Application
                 return;
             }
 
+            // Menu-bar mode: keep a hidden window hidden — Settings is the only opener.
+            if (MenuBarMode.IsActive && !isMiniaturized && mainWindow.IsVisible == false)
+            {
+                return;
+            }
+
             if (!AppManager.Instance.Config.UiItem.MacOSShowInDock)
             {
                 MacAppUtils.SetActivationPolicyAccessory();

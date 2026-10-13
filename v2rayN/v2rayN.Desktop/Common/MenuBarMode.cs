@@ -127,6 +127,9 @@ internal static class MenuBarMode
 
             // Core not started yet; the CoreStateChanged event flips it to ON after boot auto-connect.
             icons[0].Icon = _iconOff;
+
+            // Template mode: the black+alpha PNGs let AppKit tint the icon for light/dark menu bars.
+            MacOSProperties.SetIsTemplateIcon(icons[0], true);
         }
         catch (Exception ex)
         {
