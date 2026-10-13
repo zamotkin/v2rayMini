@@ -15,7 +15,14 @@ rm -rf dist
 mkdir -p dist
 
 # Exact upstream CI flags (see .github/workflows/build.yml).
-dotnet publish ./v2rayN/v2rayN.Desktop/v2rayN.Desktop.csproj -c Release -r osx-arm64 -p:SelfContained=true -o "$OUT_DIR"
+# Fall back to the dotnet SDK container on hosts without a local dotnet SDK.
+if command -v dotnet >/dev/null 2>&1; then
+    dotnet publish ./v2rayN/v2rayN.Desktop/v2rayN.Desktop.csproj -c Release -r osx-arm64 -p:SelfContained=true -o "$OUT_DIR"
+else
+    docker run --rm -v "$REPO_ROOT":/src -v v2rayn-nuget:/root/.nuget -w /src \
+        mcr.microsoft.com/dotnet/sdk:10.0 \
+        dotnet publish ./v2rayN/v2rayN.Desktop/v2rayN.Desktop.csproj -c Release -r osx-arm64 -p:SelfContained=true -o "$OUT_DIR"
+fi
 
 # CI parity: strip pdb files from the output.
 find "$OUT_DIR" -name '*.pdb' -delete
