@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Local deploy script: build the macOS arm64 self-contained app, package it
-# as the v2rayMini.app bundle and zip the bundle.
+# as the v2rayMini.app bundle and zip the bundle. Then install the xray core
+# into the v2rayMini data dir and refresh /Applications/v2rayMini.app so
+# Connect works out of the box.
 # NOTE: the run is gated on the v2rayMini menu-bar feature epic (E1) completing;
 # this script must not be executed until that chain is done.
 set -euo pipefail
@@ -8,6 +10,17 @@ set -euo pipefail
 # Derive the repo root from the script location, never from $PWD.
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
+
+# Abort if v2rayMini is running: deploying must never kill or clobber a live
+# app (rm -rf below would pull the bundle out from under the running process).
+abort_if_v2raymini_running() {
+    if pgrep -f "/Applications/v2rayMini.app" >/dev/null 2>&1 || pgrep -x v2rayN >/dev/null 2>&1; then
+        echo "ERROR: v2rayMini appears to be running. Close it first, then re-run $0; aborting." >&2
+        exit 1
+    fi
+}
+# Fail fast, before the expensive build.
+abort_if_v2raymini_running
 
 OUT_DIR="./dist/v2rayMini-osx-arm64"
 ZIP_PATH="./dist/v2rayMini-osx-arm64.zip"
@@ -100,3 +113,57 @@ fi
 ABS_ZIP_PATH="$(cd "$(dirname "$ZIP_PATH")" && pwd)/$(basename "$ZIP_PATH")"
 ABS_ZIP_SIZE="$(du -h "$ABS_ZIP_PATH" | cut -f1)"
 echo "Artifact: $ABS_ZIP_PATH ($ABS_ZIP_SIZE)"
+
+# --- Install the xray core into the v2rayMini data dir (latest 2dust/v2rayN-core-bin) ---
+# xray only: v2rayMini runs a single core; geo files are downloaded by the app on demand.
+CORE_REPO="2dust/v2rayN-core-bin"
+CORE_DIR="$HOME/Library/Application Support/v2rayMini/bin/xray"
+mkdir -p "$CORE_DIR"
+
+CORE_TMP="$(mktemp -d "${TMPDIR:-/tmp}/v2rayMini-core.XXXXXX")"
+trap 'rm -rf "$CORE_TMP"' EXIT
+
+# Discover the latest macOS arm64 core archive via gh; do not hardcode blindly.
+# The repo currently ships cores as plain files on master (no GitHub releases);
+# prefer a matching release asset when one appears, else fall back to master.
+CORE_ARCHIVE_URL=""
+if gh release view --repo "$CORE_REPO" --json assets >/dev/null 2>&1; then
+    CORE_ASSET="$(gh release view --repo "$CORE_REPO" --json assets --jq '[.assets[].name | select(test("(?i)(osx|macos)-arm64.*\\.zip"))][0] // empty')"
+    if [[ -n "$CORE_ASSET" ]]; then
+        CORE_TAG="$(gh release view --repo "$CORE_REPO" --json tagName --jq .tagName)"
+        CORE_ARCHIVE_URL="https://github.com/$CORE_REPO/releases/download/$CORE_TAG/$CORE_ASSET"
+    fi
+fi
+if [[ -z "$CORE_ARCHIVE_URL" ]]; then
+    CORE_ARCHIVE_URL="$(gh api "repos/$CORE_REPO/contents/v2rayN-macos-arm64.zip?ref=master" --jq .download_url)"
+fi
+CORE_ARCHIVE_NAME="$(basename "$CORE_ARCHIVE_URL")"
+echo "Core bin archive: $CORE_ARCHIVE_NAME ($CORE_ARCHIVE_URL)"
+
+# Download to temp and verify the binary runs there; only then install in place.
+curl -fSL --retry 3 -o "$CORE_TMP/$CORE_ARCHIVE_NAME" "$CORE_ARCHIVE_URL"
+unzip -q "$CORE_TMP/$CORE_ARCHIVE_NAME" -d "$CORE_TMP/unpacked"
+XRAY_SRC="$(find "$CORE_TMP/unpacked" -type f -name xray -print -quit)"
+if [[ -z "$XRAY_SRC" ]]; then
+    echo "ERROR: no xray binary found inside $CORE_ARCHIVE_NAME; wrong artifact?" >&2
+    exit 1
+fi
+if ! "$XRAY_SRC" -version >/dev/null 2>&1; then
+    echo "ERROR: downloaded xray from $CORE_ARCHIVE_NAME does not run on this machine." >&2
+    exit 1
+fi
+
+cp "$XRAY_SRC" "$CORE_DIR/xray"
+chmod +x "$CORE_DIR/xray"
+echo "Installed core: $CORE_DIR/xray ($("$CORE_DIR/xray" -version | head -n1))"
+rm -rf "$CORE_TMP"
+
+# --- Auto-install the fresh bundle into /Applications ---
+# Re-check the guard right before replacing the app (the early check above
+# happened before the build; a lot of time has passed since).
+abort_if_v2raymini_running
+if [[ -d /Applications/v2rayMini.app ]]; then
+    rm -rf /Applications/v2rayMini.app
+fi
+cp -R "$APP_DIR" /Applications/
+echo "Installed app: /Applications/v2rayMini.app"
