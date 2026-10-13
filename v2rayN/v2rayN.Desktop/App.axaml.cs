@@ -31,6 +31,12 @@ public partial class App : Application
             mainWindow.ViewModel = mainWindowViewModel;
             desktop.MainWindow = mainWindow;
 
+            MenuBarMode.Activate(mainWindow, async () =>
+            {
+                await AppManager.Instance.AppExitAsync(false);
+                AppManager.Instance.Shutdown(true);
+            });
+
             if (OperatingSystem.IsMacOS())
             {
                 Current?.TryGetFeature<IActivatableLifetime>()?.Activated += OnMacOSActivated;

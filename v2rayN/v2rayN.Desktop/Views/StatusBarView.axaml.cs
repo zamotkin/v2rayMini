@@ -63,6 +63,11 @@ public partial class StatusBarView : ReactiveUserControl<StatusBarViewModel>
 
     private void RefreshIcon()
     {
+        if (MenuBarMode.IsActive)
+        {
+            return;
+        }
+
         if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.MainWindow.Icon = AvaUtils.GetAppIcon(_config.SystemProxyItem.SysProxyType);
