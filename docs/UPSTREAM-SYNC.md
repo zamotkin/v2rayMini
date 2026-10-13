@@ -32,3 +32,15 @@ future merges trivial. The ONLY exceptions are our additive files, where we keep
 
 These files do not exist upstream (or, for the CLAUDE.md section, upstream has no such
 section), so conflicts there mean an accidental deletion — always restore our version.
+
+## Coexistence
+
+v2rayMini inherits the upstream single-instance mutex: `Program.cs` creates a
+`Mutex` named `v2rayN`. The old `/Applications/v2rayN.app` uses the same mutex, so
+running both at once makes the second instance exit silently. Quit one before
+launching the other.
+
+- `/Applications/v2rayMini.app` is the canonical, installed app — launch only that one.
+- `dist/` outputs (`dist/v2rayMini-osx-arm64/`, `dist/v2rayMini.app/`, and any
+  `dist-bisect*` working copies) are build artifacts, not for launching; the
+  distributable is `dist/v2rayMini-osx-arm64.zip`.
