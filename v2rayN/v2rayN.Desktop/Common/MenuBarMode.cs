@@ -39,7 +39,7 @@ internal static class MenuBarMode
 
             // Dispose the CoreStateChanged subscription before the app starts shutting down,
             // so CoreStop's publish during AppExitAsync cannot reach the tray handler anymore.
-            var menu = BuildMenu(async () =>
+            var items = BuildMenuItems(async () =>
             {
                 _coreStateChangedSubscription?.Dispose();
                 _coreStateChangedSubscription = null;
@@ -47,7 +47,7 @@ internal static class MenuBarMode
             });
 
             // The XAML TrayIcon may not be materialized yet; defer once to the UI thread.
-            Dispatcher.UIThread.Post(() => ApplyTray(menu));
+            Dispatcher.UIThread.Post(() => ApplyTray(items));
 
             _coreStateChangedSubscription = AppEvents.CoreStateChanged
                 .AsObservable()
@@ -72,26 +72,25 @@ internal static class MenuBarMode
         _mainWindow.Hide();
     }
 
-    private static NativeMenu BuildMenu(Func<Task> exitAction)
+    private static NativeMenuItem[] BuildMenuItems(Func<Task> exitAction)
     {
         var vm = StatusBarViewModel.Instance;
 
         var exitItem = new NativeMenuItem { Header = ResUI.menuExit };
         exitItem.Click += async (sender, e) => await exitAction();
 
-        return new NativeMenu
-        {
-            Items =
-            {
-                new NativeMenuItem { Header = ResUI.menuConnect, Command = vm.MenuConnectCmd },
-                new NativeMenuItem { Header = ResUI.menuDisconnect, Command = vm.MenuDisconnectCmd },
-                new NativeMenuItem { Header = ResUI.TbDisplayGUI, Command = vm.ShowWindowCmd },
-                exitItem,
-            },
-        };
+        // Parentless items: adding a still-parented item to another menu trips
+        // the AvaloniaList validator ("already has a parent NativeMenu").
+        return
+        [
+            new NativeMenuItem { Header = ResUI.menuConnect, Command = vm.MenuConnectCmd },
+            new NativeMenuItem { Header = ResUI.menuDisconnect, Command = vm.MenuDisconnectCmd },
+            new NativeMenuItem { Header = ResUI.TbDisplayGUI, Command = vm.ShowWindowCmd },
+            exitItem,
+        ];
     }
 
-    private static void ApplyTray(NativeMenu menu)
+    private static void ApplyTray(NativeMenuItem[] items)
     {
         // Runs via Dispatcher.UIThread.Post, i.e. outside Activate's try/catch —
         // must guard itself or a tray failure kills the app.
@@ -107,14 +106,14 @@ internal static class MenuBarMode
             // a different instance ("The menu being updated does not match"), so mutate
             // the existing menu in place instead of replacing it.
             var target = icons[0].Menu;
-            if (target is null || target == menu)
+            if (target is null)
             {
-                icons[0].Menu = menu;
+                icons[0].Menu = new NativeMenu { Items = { items } };
             }
             else
             {
                 target.Items.Clear();
-                foreach (var item in menu.Items)
+                foreach (var item in items)
                 {
                     target.Items.Add(item);
                 }
